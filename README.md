@@ -62,9 +62,15 @@ Load once with `(load "...claude_bridge_commands.lsp")`, or add it to
 nanoCAD's Startup Suite (`APPLOAD` command) to have it available every time
 nanoCAD starts.
 
-## Setup & usage guide
+## Guides
 
-A full illustrated walkthrough (daily workflow, Startup Suite steps, and the
-"Object selection" dialog gotcha) lives at [`docs/setup-guide.html`](docs/setup-guide.html)
-(open it in a browser) - also published at
-https://claude.ai/code/artifact/1e63d35e-36ab-4f46-9441-3cd9fc8973ca
+- [`docs/install-guide.html`](docs/install-guide.html) - step-by-step, from a
+  clean Windows machine (Python, dependencies, cloning this repo, wiring the
+  paths, registering the plugin) to the first working command. Also published
+  at https://claude.ai/code/artifact/eb456af1-4e75-4edb-8411-55958c897879
+- [`docs/setup-guide.html`](docs/setup-guide.html) - daily workflow once
+  installed, the in-nanoCAD helper commands, Startup Suite, and the "Object
+  selection" dialog gotcha. Also published at
+  https://claude.ai/code/artifact/1e63d35e-36ab-4f46-9441-3cd9fc8973ca
+
+Open either `.html` file directly in a browser.

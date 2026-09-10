@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Установка Claude—nanoCAD</title>
+<style>
+  :root{
+    --bg:#F1F4F7;
+    --surface:#FFFFFF;
+    --surface-2:#E4EAF0;
+    --text:#17232E;
+    --text-dim:#4C5C6B;
+    --accent:#1D5C8A;
+    --accent-strong:#0E3A57;
+    --warn:#B5651D;
+    --warn-bg:#FBEEE2;
+    --ok:#2C7A4B;
+    --ok-bg:#E7F3EC;
+    --border:#C7D2DB;
+    --code-bg:#0E2233;
+    --code-text:#CFE6F5;
+    --code-accent:#7FC2EE;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0E1720; --surface:#16222C; --surface-2:#1D2C38;
+      --text:#E3EAF0; --text-dim:#97A8B6;
+      --accent:#5FA8D6; --accent-strong:#8FC4E8;
+      --warn:#E0925A; --warn-bg:#2A2015;
+      --ok:#6FCB94; --ok-bg:#122A1E;
+      --border:#2A3B48;
+      --code-bg:#081420; --code-text:#BFE0F2; --code-accent:#7FC2EE;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0E1720; --surface:#16222C; --surface-2:#1D2C38;
+    --text:#E3EAF0; --text-dim:#97A8B6;
+    --accent:#5FA8D6; --accent-strong:#8FC4E8;
+    --warn:#E0925A; --warn-bg:#2A2015;
+    --ok:#6FCB94; --ok-bg:#122A1E;
+    --border:#2A3B48;
+    --code-bg:#081420; --code-text:#BFE0F2; --code-accent:#7FC2EE;
+  }
+
+  *{box-sizing:border-box;}
+  html{ background:var(--bg); }
+  body{
+    background:var(--bg);
+    color:var(--text);
+    margin:0;
+    font-family:"IBM Plex Sans", -apple-system, "Segoe UI", sans-serif;
+    line-height:1.55;
+    background-image:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size:28px 28px;
+    background-attachment:fixed;
+  }
+
+  .page{ max-width:760px; margin:0 auto; padding:40px 24px 80px; }
+
+  h1,h2,h3{
+    font-family:"Oswald", "Archivo Narrow", sans-serif;
+    text-wrap:balance;
+    color:var(--text);
+    letter-spacing:.01em;
+  }
+
+  .titleblock{
+    background:var(--surface);
+    border:1.5px solid var(--border);
+    border-radius:2px;
+    box-shadow:0 1px 0 var(--border);
+    overflow:hidden;
+    margin-bottom:32px;
+  }
+  .titleblock-main{ padding:26px 28px 22px; border-bottom:1px solid var(--border); }
+  .eyebrow{
+    font-family:"Oswald", sans-serif;
+    font-size:12px; font-weight:500; letter-spacing:.16em;
+    text-transform:uppercase; color:var(--accent); margin:0 0 10px;
+  }
+  .titleblock h1{ font-size:30px; font-weight:600; margin:0 0 6px; }
+  .titleblock .subtitle{ color:var(--text-dim); font-size:16px; margin:0; }
+  .titleblock-meta{ display:grid; grid-template-columns:repeat(4, 1fr); }
+  .meta-cell{ padding:12px 16px; border-right:1px solid var(--border); }
+  .meta-cell:last-child{ border-right:none; }
+  .meta-label{ font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--text-dim); margin:0 0 3px; }
+  .meta-value{ font-family:"IBM Plex Mono", monospace; font-size:13px; color:var(--text); margin:0; }
+
+  .progress{
+    display:flex; gap:6px; margin-bottom:36px;
+  }
+  .progress span{
+    flex:1; height:4px; border-radius:2px; background:var(--border);
+  }
+  .progress span.done{ background:var(--accent); }
+
+  section{ margin-bottom:34px; }
+
+  .section-head{ display:flex; align-items:baseline; gap:12px; margin-bottom:6px; }
+  .section-num{
+    font-family:"IBM Plex Mono", monospace; font-size:13px; color:var(--accent);
+    border:1px solid var(--accent); border-radius:3px; padding:1px 7px; flex:none;
+  }
+  h2{ font-size:20px; font-weight:600; margin:0; }
+  .section-sub{ color:var(--text-dim); font-size:14px; margin:4px 0 16px 46px; }
+
+  p{ color:var(--text); margin:0 0 12px; max-width:64ch; }
+  p.dim{ color:var(--text-dim); }
+
+  .steps{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:16px; }
+  .steps li{ display:grid; grid-template-columns:34px 1fr; gap:14px; align-items:start; }
+  .step-index{
+    width:34px; height:34px; border-radius:50%; background:var(--accent); color:var(--surface);
+    font-family:"IBM Plex Mono", monospace; font-weight:600; font-size:14px;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .step-body p{ margin:0 0 8px; }
+  .step-body .step-title{ font-weight:600; margin:0 0 3px; }
+  .step-body p:last-child{ margin-bottom:0; }
+
+  code, .inline-code{
+    font-family:"IBM Plex Mono", monospace; font-size:.92em;
+    background:var(--surface-2); border:1px solid var(--border); border-radius:3px;
+    padding:1px 6px; color:var(--accent-strong);
+  }
+  :root[data-theme="dark"] .inline-code, :root[data-theme="dark"] code{ color:var(--code-accent); }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]) .inline-code,
+    :root:not([data-theme="light"]) code{ color:var(--code-accent); }
+  }
+
+  pre{
+    background:var(--code-bg); color:var(--code-text); border-radius:6px;
+    padding:14px 16px; overflow-x:auto;
+    font-family:"IBM Plex Mono", monospace; font-size:12.8px; line-height:1.6;
+    margin:8px 0 4px; border:1px solid var(--accent-strong);
+  }
+  pre .c{ color:var(--code-accent); }
+  pre .s{ color:#E3C97F; }
+  pre .m{ color:#9FD9A6; }
+
+  .path{ font-family:"IBM Plex Mono", monospace; font-size:12.5px; color:var(--text-dim); word-break:break-all; }
+
+  .card{ background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:16px 18px; }
+  .card + .card{ margin-top:10px; }
+  .card-title{ font-weight:600; margin:0 0 6px; display:flex; align-items:center; gap:8px; }
+
+  .warn{ background:var(--warn-bg); border:1px solid var(--warn); border-radius:6px; padding:16px 18px; margin-top:10px; }
+  .warn .card-title{ color:var(--warn); }
+  .warn p{ color:var(--text); margin:0; }
+
+  .ok{ background:var(--ok-bg); border:1px solid var(--ok); border-radius:6px; padding:16px 18px; }
+  .ok .card-title{ color:var(--ok); }
+  .ok p{ color:var(--text); margin:0; }
+
+  .checklist{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px; }
+  .checklist li{ display:flex; align-items:flex-start; gap:10px; }
+  .checklist li::before{
+    content:"☐"; color:var(--accent); font-size:16px; line-height:1.4; flex:none;
+  }
+
+  footer{
+    margin-top:44px; padding-top:20px; border-top:1px solid var(--border);
+    display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px;
+    color:var(--text-dim); font-size:13px;
+  }
+  footer a{ color:var(--accent); text-decoration:none; }
+  footer a:hover{ text-decoration:underline; }
+  a{ color:var(--accent); }
+  a:focus-visible, button:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+
+  @media (prefers-reduced-motion:no-preference){ .titleblock{ animation:rise .5s ease-out; } }
+  @keyframes rise{ from{ opacity:0; transform:translateY(6px);} to{ opacity:1; transform:none;} }
+
+  @media (max-width:640px){
+    .titleblock-meta{ grid-template-columns:1fr 1fr; }
+    .section-sub{ margin-left:0; }
+  }
+</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+</head>
+<body>
+<div class="page">
+
+  <div class="titleblock">
+    <div class="titleblock-main">
+      <p class="eyebrow">Установка с нуля · для новичка</p>
+      <h1>Claude ↔ nanoCAD на новом компьютере</h1>
+      <p class="subtitle">Пошаговая установка моста от чистой системы до первой рабочей команды</p>
+    </div>
+    <div class="titleblock-meta">
+      <div class="meta-cell"><p class="meta-label">Шагов</p><p class="meta-value">7</p></div>
+      <div class="meta-cell"><p class="meta-label">Время</p><p class="meta-value">~15 мин</p></div>
+      <div class="meta-cell"><p class="meta-label">ОС</p><p class="meta-value">Windows</p></div>
+      <div class="meta-cell"><p class="meta-label">Версия</p><p class="meta-value">1.0</p></div>
+    </div>
+  </div>
+
+  <div class="progress">
+    <span class="done"></span><span class="done"></span><span class="done"></span><span class="done"></span>
+    <span class="done"></span><span class="done"></span><span class="done"></span>
+  </div>
+
+  <section>
+    <div class="section-head"><span class="section-num">0</span><h2>Перед началом</h2></div>
+    <div class="section-sub">Проверьте, что это у вас уже есть — остальное поставим по ходу</div>
+    <ul class="checklist">
+      <li>Windows-компьютер с правами администратора (для установки Python)</li>
+      <li>Установленный и лицензированный <b>nanoCAD x64 26.0</b> (если ещё нет — ставится
+      отдельно с сайта Nanosoft, это вне рамок этой инструкции)</li>
+      <li>Доступ к вашему аккаунту GitHub (<span class="inline-code">LectorNZ</span>) —
+      репозиторий приватный, для скачивания нужно быть авторизованным</li>
+    </ul>
+  </section>
+
+  <section>
+    <div class="section-head"><span class="section-num">1</span><h2>Установите Python</h2></div>
+    <div class="section-sub">Он нужен, чтобы запускать сам мост-сервер</div>
+    <ol class="steps">
+      <li>
+        <span class="step-index">1</span>
+        <div class="step-body">
+          <p class="step-title">Откройте PowerShell</p>
+          <p>Пуск → напишите <span class="inline-code">PowerShell</span> → Enter.</p>
+        </div>
+      </li>
+      <li>
+        <span class="step-index">2</span>
+        <div class="step-body">
+          <p class="step-title">Установите Python 3.12</p>
+          <p>Вставьте команду и нажмите Enter, дождитесь надписи «Successfully installed»:</p>
+          <pre><span class="c">winget install</span> --id Python.Python.3.12 -e --source winget</pre>
+          <p class="dim">Нет winget (старая Windows)? Скачайте установщик на
+          <span class="inline-code">python.org/downloads</span> и при установке обязательно
+          поставьте галочку «Add python.exe to PATH».</p>
+        </div>
+      </li>
+      <li>
+        <span class="step-index">3</span>
+        <div class="step-body">
+          <p class="step-title">Проверьте</p>
+          <p>Закройте и заново откройте PowerShell (чтобы обновился PATH), затем:</p>
+          <pre><span class="c">python</span> --version</pre>
+          <p>Должно показать что-то вроде <span class="inline-code">Python 3.12.10</span>.</p>
+        </div>
+      </li>
+    </ol>
+  </section>
+
+  <section>
+    <div class="section-head"><span class="section-num">2</span><h2>Поставьте два пакета</h2></div>
+    <div class="section-sub">Связь с nanoCAD (pywin32) и протокол для Claude (mcp)</div>
+    <pre><span class="c">python</span> -m pip install pywin32 <span class="s">"mcp[cli]"</span></pre>
+    <p class="dim">Займёт минуту-две, в конце должно быть без красных ошибок.</p>
+  </section>
+
+  <section>
+    <div class="section-head"><span class="section-num">3</span><h2>Скачайте проект с GitHub</h2></div>
+    <div class="section-sub">Готовый код моста — ничего писать не нужно</div>
+    <ol class="steps">
+      <li>
+        <span class="step-index">1</span>
+        <div class="step-body">
+          <p class="step-title">Откройте репозиторий в браузере</p>
+          <p>Зайдите под своим GitHub-аккаунтом и откройте
+          <a href="https://github.com/LectorNZ/nanocad-mcp-server">github.com/LectorNZ/nanocad-mcp-server</a>.</p>
+        </div>
+      </li>
+      <li>
+        <span class="step-index">2</span>
+        <div class="step-body">
+          <p class="step-title">Скачайте архив</p>
+          <p>Зелёная кнопка <span class="inline-code">Code</span> → <span class="inline-code">Download ZIP</span>.</p>
+        </div>
+      </li>
+      <li>
+        <span class="step-index">3</span>
+        <div class="step-body">
+          <p class="step-title">Распакуйте в постоянное место</p>
+          <p>Не в Загрузки и не во временную папку — например:</p>
+          <p class="path">C:\Users\&lt;ваше_имя&gt;\nanocad-mcp-server</p>
+          <p class="dim">Дальше эта папка и есть «корень репозитория» — на неё будем ссылаться.</p>
+        </div>
+      </li>
+    </ol>
+  </section>
+
+  <section>
+    <div class="section-head"><span class="section-num">4</span><h2>Подставьте свои пути</h2></div>
+    <div class="section-sub">Единственный шаг, где нужно кое-что подправить руками</div>
+    <ol class="steps">
+      <li>
+        <span class="step-index">1</span>
+        <div class="step-body">
+          <p class="step-title">Узнайте, где лежит python.exe</p>
+          <pre>(Get-Command <span class="c">python</span>).Source</pre>
+          <p>Скопируйте результат — что-то вроде
+          <span class="path">C:\Users\...\AppData\Local\Programs\Python\Python312\python.exe</span>.</p>
+        </div>
+      </li>
+      <li>
+        <span class="step-index">2</span>
+        <div class="step-body">
+          <p class="step-title">Откройте файл <span class="inline-code">.mcp.json</span></p>
+          <p>Путь внутри скачанной папки:</p>
+          <p class="path">nanocad-mcp-server\plugins\nanocad-ai\.mcp.json</p>
+          <p>Откройте в Блокноте и замените оба пути (<span class="inline-code">command</span> и
+          <span class="inline-code">args</span>) на пути именно этого компьютера — python.exe
+          из прошлого шага и <span class="inline-code">server\nanocad_server.py</span> внутри
+          вашей скачанной папки:</p>
+          <pre>{
+  <span class="s">"mcpServers"</span>: {
+    <span class="s">"nanocad-application-server"</span>: {
+      <span class="s">"command"</span>: <span class="s">"C:\\путь\\к\\python.exe"</span>,
+      <span class="s">"args"</span>: [<span class="s">"C:\\путь\\к\\nanocad-mcp-server\\plugins\\nanocad-ai\\server\\nanocad_server.py"</span>]
+    }
+  }
+}</pre>
+          <p class="dim">Важно: в JSON каждый обратный слэш нужно писать двойным —
+          <span class="inline-code">\\</span>, а не <span class="inline-code">\</span>.</p>
+        </div>
+      </li>
+    </ol>
+  </section>
+
+  <section>
+    <div class="section-head"><span class="section-num">5</span><h2>Подключите плагин к Claude Code</h2></div>
+    <div class="section-sub">Один файл настроек, два новых ключа</div>
+    <ol class="steps">
+      <li>
+        <span class="step-index">1</span>
+        <div class="step-body">
+          <p class="step-title">Откройте файл настроек</p>
+          <p class="path">%USERPROFILE%\.claude\settings.json</p>
+          <p class="dim">Нет файла или он пустой? Создайте с содержимым
+          <span class="inline-code">{}</span> и продолжайте.</p>
+        </div>
+      </li>
+      <li>
+        <span class="step-index">2</span>
+        <div class="step-body">
+          <p class="step-title">Добавьте два ключа</p>
+          <p>Впишите (или аккуратно объедините с уже существующим содержимым, если там
+          что-то есть — ничего чужого не удаляйте):</p>
+          <pre>{
+  <span class="s">"extraKnownMarketplaces"</span>: {
+    <span class="s">"nanocad-ai"</span>: {
+      <span class="s">"source"</span>: { <span class="s">"source"</span>: <span class="s">"directory"</span>, <span class="s">"path"</span>: <span class="s">"C:\\путь\\к\\nanocad-mcp-server"</span> }
+    }
+  },
+  <span class="s">"enabledPlugins"</span>: {
+    <span class="s">"nanocad-ai@nanocad-ai"</span>: <span class="m">true</span>
+  }
+}</pre>
+          <p class="dim"><span class="inline-code">path</span> — это путь к папке, куда вы
+          распаковали архив на шаге 3 (та, что содержит <span class="inline-code">.claude-plugin</span>).</p>
+        </div>
+      </li>
+    </ol>
+  </section>
+
+  <section>
+    <div class="section-head"><span class="section-num">6</span><h2>Перезапустите и проверьте</h2></div>
+    <ol class="steps">
+      <li>
+        <span class="step-index">1</span>
+        <div class="step-body">
+          <p class="step-title">Полностью закройте и заново откройте Claude Code</p>
+          <p>MCP-серверы подключаются только при старте сессии.</p>
+        </div>
+      </li>
+      <li>
+        <span class="step-index">2</span>
+        <div class="step-body">
+          <p class="step-title">Откройте nanoCAD x64 26.0</p>
+          <p>С любым документом — сервер подключается к уже запущенному приложению.</p>
+        </div>
+      </li>
+      <li>
+        <span class="step-index">3</span>
+        <div class="step-body">
+          <p class="step-title">Спросите Claude что-нибудь простое</p>
+          <p>Например «нарисуй в nanoCAD окружность радиусом 10» — если он это делает,
+          всё подключено верно.</p>
+        </div>
+      </li>
+    </ol>
+
+    <div class="ok" style="margin-top:16px;">
+      <p class="card-title">✓ Готово</p>
+      <p>С этого момента Claude работает с nanoCAD на этой машине так же, как на исходной.
+      Повседневные команды, автозагрузку в nanoCAD и разбор возможных зависаний смотрите
+      в основной инструкции — ссылка ниже.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="warn">
+      <p class="card-title">⚠ Если Claude не видит инструменты nanoCAD после перезапуска</p>
+      <p>Проверьте по порядку: 1) файл <span class="inline-code">settings.json</span> — валидный
+      ли JSON (лишняя запятая — частая причина); 2) путь в <span class="inline-code">path</span>
+      действительно ведёт на папку с <span class="inline-code">.claude-plugin</span> внутри;
+      3) в <span class="inline-code">.mcp.json</span> путь к <span class="inline-code">python.exe</span>
+      существует и без опечаток.</p>
+    </div>
+  </section>
+
+  <footer>
+    <span>nanocad-mcp-server · разовая установка на новой машине</span>
+    <a href="https://github.com/LectorNZ/nanocad-mcp-server">github.com/LectorNZ/nanocad-mcp-server</a>
+  </footer>
+
+</div>
+</body>
+</html>
