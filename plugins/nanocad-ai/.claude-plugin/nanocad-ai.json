@@ -1,0 +1,10 @@
+{
+  "name": "nanocad-ai",
+  "description": "Local MCP bridge to a running nanoCAD 26 instance via its COM automation API",
+  "version": "1.0.0",
+  "author": {
+    "name": "Local (self-built)"
+  },
+  "license": "Unlicensed (local use only)",
+  "keywords": ["design", "cad", "nanocad"]
+}

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "nanocad-application-server": {
+      "command": "C:\\Users\\zemlyanskiy\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "args": ["C:\\Users\\zemlyanskiy\\.claude\\local-plugins\\nanocad-ai\\plugins\\nanocad-ai\\server\\nanocad_server.py"]
+    }
+  }
+}

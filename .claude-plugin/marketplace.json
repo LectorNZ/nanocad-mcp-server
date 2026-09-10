@@ -1,0 +1,13 @@
+{
+  "name": "nanocad-ai",
+  "owner": {
+    "name": "Local (self-built)"
+  },
+  "plugins": [
+    {
+      "name": "nanocad-ai",
+      "source": "./plugins/nanocad-ai",
+      "description": "Local MCP bridge to a running nanoCAD 26 instance via its COM automation API"
+    }
+  ]
+}
