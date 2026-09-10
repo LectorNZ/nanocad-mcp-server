@@ -95,6 +95,22 @@ def run_command(command: str) -> dict:
       "CIRCLE 0,0 5 "      -> draws a circle at origin, radius 5
       "LINE 0,0 10,10 20,0  "  -> polyline-style multi-segment line, then
                                    an extra trailing space to end the command
+
+    CAUTION - object-selection-by-point commands (DIMDIAMETER, DIMRADIUS,
+    anything that picks an entity via a single coordinate) can pop a modal
+    "Object selection" dialog when the point is ambiguous (e.g. it lies on
+    two overlapping entities, such as a circle crossed by a centerline).
+    That dialog blocks SendCommand entirely -  every subsequent call will
+    silently no-op (before/after counts equal) until a human closes it.
+    Prefer add_dim_diametric / add_dim_radial / add_dim_aligned below for
+    dimensioning - they take explicit geometry, never pick by screen point,
+    and cannot trigger this dialog.
+
+    The returned before/after counts are read immediately after SendCommand
+    returns, which for a long-running command (or a run_lisp script with
+    many steps) can race ahead of nanoCAD actually finishing - treat them as
+    a rough signal only; call discover_entities afterwards for the ground
+    truth.
     """
     doc = _get_doc()
     before = doc.ModelSpace.Count
@@ -105,15 +121,104 @@ def run_command(command: str) -> dict:
 
 @mcp.tool()
 def run_lisp(lispFilePath: str) -> dict:
-    """Runs an AutoLISP (.lsp) file located at the given path inside nanoCAD."""
+    """Runs an AutoLISP (.lsp) file located at the given path inside nanoCAD.
+
+    See the object-selection-dialog caution on run_command - it applies here
+    too if the script contains point-picking commands. The returned counts
+    are approximate for the same reason (SendCommand can return before a
+    multi-step script has fully executed); re-check with discover_entities
+    after a short pause for anything beyond a trivial script.
+    """
     if not os.path.isfile(lispFilePath):
         raise FileNotFoundError(lispFilePath)
     doc = _get_doc()
     safe_path = lispFilePath.replace("\\", "/")
     before = doc.ModelSpace.Count
     _send(doc, '(load "%s") ' % safe_path)
+    time.sleep(0.5)
     after = doc.ModelSpace.Count
     return {"status": "success", "modelSpaceCountBefore": before, "modelSpaceCountAfter": after}
+
+
+def _variant_point(x: float, y: float, z: float = 0.0):
+    return win32com.client.VARIANT(
+        pythoncom.VT_ARRAY | pythoncom.VT_R8, (float(x), float(y), float(z))
+    )
+
+
+@mcp.tool()
+def set_current_layer(layerName: str) -> dict:
+    """Sets the current/active layer via COM (doc.ActiveLayer), which is
+    more reliable than driving the -LAYER command line for this purpose."""
+    doc = _get_doc()
+    doc.ActiveLayer = doc.Layers.Item(layerName)
+    return {"status": "success", "activeLayer": doc.ActiveLayer.Name}
+
+
+@mcp.tool()
+def add_dim_aligned(x1: float, y1: float, x2: float, y2: float,
+                     textX: float, textY: float, textOverride: str = "") -> dict:
+    """Creates an aligned linear dimension directly via COM
+    (ModelSpace.AddDimAligned) between (x1,y1) and (x2,y2), with the
+    dimension line/text placed at (textX,textY). Use this instead of the
+    DIMLINEAR command when you want a guaranteed, non-interactive result.
+    Pass textOverride to replace the auto-measured text (e.g. to add
+    tolerances, e.g. "44-0.34")."""
+    doc = _get_doc()
+    d = doc.ModelSpace.AddDimAligned(
+        _variant_point(x1, y1), _variant_point(x2, y2), _variant_point(textX, textY)
+    )
+    if textOverride:
+        d.TextOverride = textOverride
+    return {"status": "success", "handle": d.Handle, "measurement": d.Measurement}
+
+
+@mcp.tool()
+def add_dim_diametric(centerX: float, centerY: float, edgeX: float, edgeY: float,
+                       leaderLength: float, textOverride: str = "") -> dict:
+    """Creates a diametric dimension directly via COM
+    (ModelSpace.AddDimDiametric) for a circle centered at (centerX,centerY),
+    using (edgeX,edgeY) - a point on the circle's circumference - to define
+    which side the leader points to. Avoids DIMDIAMETER's point-pick, which
+    can pop a blocking "Object selection" dialog if ambiguous. Pass
+    textOverride to show the source drawing's exact text (e.g. "%%c54")."""
+    doc = _get_doc()
+    d = doc.ModelSpace.AddDimDiametric(
+        _variant_point(centerX, centerY), _variant_point(edgeX, edgeY), float(leaderLength)
+    )
+    if textOverride:
+        d.TextOverride = textOverride
+    return {"status": "success", "handle": d.Handle, "measurement": d.Measurement}
+
+
+@mcp.tool()
+def add_dim_radial(centerX: float, centerY: float, edgeX: float, edgeY: float,
+                    leaderLength: float, textOverride: str = "") -> dict:
+    """Creates a radial dimension directly via COM (ModelSpace.AddDimRadial)
+    for an arc/circle centered at (centerX,centerY), using (edgeX,edgeY) - a
+    point on the circumference - to define the leader direction. Avoids
+    DIMRADIUS's point-pick dialog risk, same as add_dim_diametric."""
+    doc = _get_doc()
+    d = doc.ModelSpace.AddDimRadial(
+        _variant_point(centerX, centerY), _variant_point(edgeX, edgeY), float(leaderLength)
+    )
+    if textOverride:
+        d.TextOverride = textOverride
+    return {"status": "success", "handle": d.Handle, "measurement": d.Measurement}
+
+
+@mcp.tool()
+def set_entity_property(handle: str, propertyName: str, value: str, blockName: str = "") -> dict:
+    """Sets a single string-valued property (e.g. Layer, TextOverride,
+    TextString, Color) on the entity with the given handle, found in model
+    space or a named block. More reliable than CHPROP for one-off fixes."""
+    doc = _get_doc()
+    space = _get_space(doc, blockName)
+    for ent in space:
+        if ent.Handle == handle:
+            setattr(ent, propertyName, value)
+            return {"status": "success", "handle": handle, propertyName: getattr(ent, propertyName)}
+    raise ValueError("No entity with handle %s found" % handle)
 
 
 def _entity_summary(ent) -> dict:
