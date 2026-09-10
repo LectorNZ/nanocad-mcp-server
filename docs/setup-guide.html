@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Мост Claude—nanoCAD</title>
+<style>
+  :root{
+    --bg:#F1F4F7;
+    --surface:#FFFFFF;
+    --surface-2:#E4EAF0;
+    --text:#17232E;
+    --text-dim:#4C5C6B;
+    --accent:#1D5C8A;
+    --accent-strong:#0E3A57;
+    --warn:#B5651D;
+    --warn-bg:#FBEEE2;
+    --border:#C7D2DB;
+    --code-bg:#0E2233;
+    --code-text:#CFE6F5;
+    --code-accent:#7FC2EE;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0E1720;
+      --surface:#16222C;
+      --surface-2:#1D2C38;
+      --text:#E3EAF0;
+      --text-dim:#97A8B6;
+      --accent:#5FA8D6;
+      --accent-strong:#8FC4E8;
+      --warn:#E0925A;
+      --warn-bg:#2A2015;
+      --border:#2A3B48;
+      --code-bg:#081420;
+      --code-text:#BFE0F2;
+      --code-accent:#7FC2EE;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0E1720;
+    --surface:#16222C;
+    --surface-2:#1D2C38;
+    --text:#E3EAF0;
+    --text-dim:#97A8B6;
+    --accent:#5FA8D6;
+    --accent-strong:#8FC4E8;
+    --warn:#E0925A;
+    --warn-bg:#2A2015;
+    --border:#2A3B48;
+    --code-bg:#081420;
+    --code-text:#BFE0F2;
+    --code-accent:#7FC2EE;
+  }
+
+  *{box-sizing:border-box;}
+  html{ background:var(--bg); }
+  body{
+    background:var(--bg);
+    color:var(--text);
+    margin:0;
+    font-family:"IBM Plex Sans", -apple-system, "Segoe UI", sans-serif;
+    line-height:1.55;
+    background-image:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size:28px 28px;
+    background-attachment:fixed;
+  }
+
+  .page{
+    max-width:760px;
+    margin:0 auto;
+    padding:40px 24px 80px;
+  }
+
+  h1,h2,h3{
+    font-family:"Oswald", "Archivo Narrow", sans-serif;
+    text-wrap:balance;
+    color:var(--text);
+    letter-spacing:.01em;
+  }
+
+  /* ---- title block, echoes a GOST drawing stamp ---- */
+  .titleblock{
+    background:var(--surface);
+    border:1.5px solid var(--border);
+    border-radius:2px;
+    box-shadow:0 1px 0 var(--border);
+    overflow:hidden;
+    margin-bottom:40px;
+  }
+  .titleblock-main{
+    padding:26px 28px 22px;
+    border-bottom:1px solid var(--border);
+  }
+  .eyebrow{
+    font-family:"Oswald", sans-serif;
+    font-size:12px;
+    font-weight:500;
+    letter-spacing:.16em;
+    text-transform:uppercase;
+    color:var(--accent);
+    margin:0 0 10px;
+  }
+  .titleblock h1{
+    font-size:32px;
+    font-weight:600;
+    margin:0 0 6px;
+  }
+  .titleblock .subtitle{
+    color:var(--text-dim);
+    font-size:16px;
+    margin:0;
+  }
+  .titleblock-meta{
+    display:grid;
+    grid-template-columns:repeat(4, 1fr);
+  }
+  .meta-cell{
+    padding:12px 16px;
+    border-right:1px solid var(--border);
+  }
+  .meta-cell:last-child{ border-right:none; }
+  .meta-label{
+    font-size:10.5px;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    color:var(--text-dim);
+    margin:0 0 3px;
+  }
+  .meta-value{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:13px;
+    color:var(--text);
+    margin:0;
+  }
+
+  section{ margin-bottom:38px; }
+
+  .section-head{
+    display:flex;
+    align-items:baseline;
+    gap:12px;
+    margin-bottom:14px;
+  }
+  .section-num{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:13px;
+    color:var(--accent);
+    border:1px solid var(--accent);
+    border-radius:3px;
+    padding:1px 7px;
+    flex:none;
+  }
+  h2{ font-size:20px; font-weight:600; margin:0; }
+
+  p{ color:var(--text); margin:0 0 12px; max-width:64ch; }
+  p.dim{ color:var(--text-dim); }
+
+  .steps{
+    list-style:none;
+    margin:0;
+    padding:0;
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+  }
+  .steps li{
+    display:grid;
+    grid-template-columns:34px 1fr;
+    gap:14px;
+    align-items:start;
+  }
+  .step-index{
+    width:34px; height:34px;
+    border-radius:50%;
+    background:var(--accent);
+    color:var(--surface);
+    font-family:"IBM Plex Mono", monospace;
+    font-weight:600;
+    font-size:14px;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .step-body p{ margin:0; }
+  .step-body .step-title{
+    font-weight:600;
+    margin:0 0 3px;
+  }
+
+  code, .inline-code{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:.92em;
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    border-radius:3px;
+    padding:1px 6px;
+    color:var(--accent-strong);
+  }
+  :root[data-theme="dark"] .inline-code, :root[data-theme="dark"] code{
+    color:var(--code-accent);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]) .inline-code,
+    :root:not([data-theme="light"]) code{ color:var(--code-accent); }
+  }
+
+  pre{
+    background:var(--code-bg);
+    color:var(--code-text);
+    border-radius:6px;
+    padding:16px 18px;
+    overflow-x:auto;
+    font-family:"IBM Plex Mono", monospace;
+    font-size:13px;
+    line-height:1.6;
+    margin:0 0 12px;
+    border:1px solid var(--accent-strong);
+  }
+  pre .c{ color:var(--code-accent); }
+  pre .s{ color:#E3C97F; }
+
+  .path{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:12.5px;
+    color:var(--text-dim);
+    word-break:break-all;
+  }
+
+  .card{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:6px;
+    padding:18px 20px;
+  }
+  .card + .card{ margin-top:12px; }
+  .card-title{
+    font-weight:600;
+    margin:0 0 6px;
+    display:flex; align-items:center; gap:8px;
+  }
+  .card-title .inline-code{ font-weight:500; }
+
+  .warn{
+    background:var(--warn-bg);
+    border:1px solid var(--warn);
+    border-radius:6px;
+    padding:18px 20px;
+  }
+  .warn .card-title{ color:var(--warn); }
+  .warn p{ color:var(--text); }
+
+  .grid-2{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:14px;
+  }
+  @media (max-width:640px){
+    .titleblock-meta{ grid-template-columns:1fr 1fr; }
+    .grid-2{ grid-template-columns:1fr; }
+  }
+
+  footer{
+    margin-top:48px;
+    padding-top:20px;
+    border-top:1px solid var(--border);
+    display:flex;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:10px;
+    color:var(--text-dim);
+    font-size:13px;
+  }
+  footer a{ color:var(--accent); text-decoration:none; }
+  footer a:hover{ text-decoration:underline; }
+
+  a{ color:var(--accent); }
+  a:focus-visible, button:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+
+  @media (prefers-reduced-motion:no-preference){
+    .titleblock{ animation:rise .5s ease-out; }
+  }
+  @keyframes rise{
+    from{ opacity:0; transform:translateY(6px); }
+    to{ opacity:1; transform:none; }
+  }
+</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+</head>
+<body>
+<div class="page">
+
+  <div class="titleblock">
+    <div class="titleblock-main">
+      <p class="eyebrow">Инструкция по эксплуатации</p>
+      <h1>Мост Claude ↔ nanoCAD</h1>
+      <p class="subtitle">Как подключиться и работать с чертежами в nanoCAD через Claude Code</p>
+    </div>
+    <div class="titleblock-meta">
+      <div class="meta-cell">
+        <p class="meta-label">Плагин</p>
+        <p class="meta-value">nanocad-ai</p>
+      </div>
+      <div class="meta-cell">
+        <p class="meta-label">Цель</p>
+        <p class="meta-value">nanoCAD x64 26.0</p>
+      </div>
+      <div class="meta-cell">
+        <p class="meta-label">Канал связи</p>
+        <p class="meta-value">COM / ActiveX</p>
+      </div>
+      <div class="meta-cell">
+        <p class="meta-label">Версия</p>
+        <p class="meta-value">1.0</p>
+      </div>
+    </div>
+  </div>
+
+  <section>
+    <div class="section-head">
+      <span class="section-num">01</span>
+      <h2>Как это устроено</h2>
+    </div>
+    <p>Локальный MCP-сервер на Python (<code>nanocad_server.py</code>) подключается к уже
+    запущенному nanoCAD 26 через его COM-интерфейс автоматизации — тот же принцип,
+    что использует AutoCAD ActiveX. Claude Code видит этот сервер как плагин и получает
+    инструменты для работы с чертежом: команды, LISP-скрипты, размеры, чтение сущностей,
+    сохранение файла.</p>
+    <p class="dim">Настройка уже выполнена и проверена на реальном чертеже — дальше только то,
+    что нужно знать вам как пользователю.</p>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <span class="section-num">02</span>
+      <h2>Ежедневный сценарий</h2>
+    </div>
+    <ol class="steps">
+      <li>
+        <span class="step-index">1</span>
+        <div class="step-body">
+          <p class="step-title">Откройте nanoCAD x64 26.0</p>
+          <p>С нужным документом — сервер подключается только к уже запущенному
+          экземпляру, сам он nanoCAD не запускает.</p>
+        </div>
+      </li>
+      <li>
+        <span class="step-index">2</span>
+        <div class="step-body">
+          <p class="step-title">Проверьте, что Claude Code видит плагин</p>
+          <p>Инструменты <span class="inline-code">nanocad-ai</span> подхватываются один раз
+          за сессию — после установки или обновления плагина перезапустите сессию Claude Code.</p>
+        </div>
+      </li>
+      <li>
+        <span class="step-index">3</span>
+        <div class="step-body">
+          <p class="step-title">Работайте с чертежом как обычно</p>
+          <p>Просите Claude нарисовать, проставить размеры, прочитать сущности или
+          сохранить файл — он использует те же инструменты, что и напрямую с nanoCAD.</p>
+        </div>
+      </li>
+    </ol>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <span class="section-num">03</span>
+      <h2>Быстрые команды прямо в nanoCAD</h2>
+    </div>
+    <p>В репозитории лежит небольшой LISP-файл с двумя командами для проверки моста
+    без участия Claude — удобно, когда нужно быстро посмотреть статус самому.</p>
+
+    <pre><span class="c">(load</span> <span class="s">"C:/Users/zemlyanskiy/.claude/local-plugins/nanocad-ai/plugins/nanocad-ai/nanocad/claude_bridge_commands.lsp"</span><span class="c">)</span></pre>
+
+    <div class="grid-2">
+      <div class="card">
+        <p class="card-title"><span class="inline-code">CLAUDESTATUS</span></p>
+        <p>Печатает в командную строку версию nanoCAD, имя документа и краткую
+        памятку про перезапуск сессии.</p>
+      </div>
+      <div class="card">
+        <p class="card-title"><span class="inline-code">CLAUDEHELP</span></p>
+        <p>Показывает те же три шага сценария выше в диалоговом окне — на случай,
+        если инструкция не под рукой.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <span class="section-num">04</span>
+      <h2>Сделать команды доступными всегда</h2>
+    </div>
+    <p>Чтобы не грузить файл вручную каждый раз, добавьте его в «Startup Suite» —
+    стандартный, штатный способ автозагрузки LISP в nanoCAD:</p>
+    <ol class="steps">
+      <li>
+        <span class="step-index">1</span>
+        <div class="step-body">
+          <p>Командная строка nanoCAD → введите <code>APPLOAD</code> (или
+          Сервис → Загрузка приложений).</p>
+        </div>
+      </li>
+      <li>
+        <span class="step-index">2</span>
+        <div class="step-body">
+          <p>Найдите файл <span class="path">claude_bridge_commands.lsp</span> по пути выше
+          и нажмите «Загрузить».</p>
+        </div>
+      </li>
+      <li>
+        <span class="step-index">3</span>
+        <div class="step-body">
+          <p>Откройте вкладку «Startup Suite» → «Добавить» → выберите тот же файл → «Закрыть».
+          С этого момента команды будут грузиться автоматически при каждом запуске nanoCAD.</p>
+        </div>
+      </li>
+    </ol>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <span class="section-num">05</span>
+      <h2>Кнопка на панели <span style="color:var(--text-dim); font-weight:400; font-size:14px;">— по желанию</span></h2>
+    </div>
+    <p>Если хочется не набирать команду руками: Сервис → Настройка интерфейса
+    (<code>CUI</code>) → создайте кнопку, укажите в поле «Макрос» строку
+    <code>^C^C_CLAUDESTATUS</code> и перетащите её на любую панель. Это стандартный
+    для nanoCAD/AutoCAD способ, здесь автоматически ничего не настраивалось.</p>
+  </section>
+
+  <section>
+    <div class="warn">
+      <p class="card-title">⚠ Если nanoCAD «завис» посреди работы Claude</p>
+      <p>Команды с выбором объекта по точке (<code>DIMDIAMETER</code>, <code>DIMRADIUS</code> —
+      их Claude использует редко, предпочитая прямые COM-методы) иногда открывают
+      диалог <span class="inline-code">Object selection</span>, если точка попадает
+      сразу на две сущности. Диалог блокирует всю связь — Claude не видит ошибки,
+      команды просто перестают что-либо делать. Посмотрите на окно nanoCAD и закройте
+      диалог — после этого всё продолжит работать.</p>
+    </div>
+  </section>
+
+  <footer>
+    <span>nanocad-mcp-server · локальный мост, работает только на этой машине</span>
+    <a href="https://github.com/LectorNZ/nanocad-mcp-server">github.com/LectorNZ/nanocad-mcp-server</a>
+  </footer>
+
+</div>
+</body>
+</html>

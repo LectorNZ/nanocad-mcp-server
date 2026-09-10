@@ -65,5 +65,6 @@ nanoCAD starts.
 ## Setup & usage guide
 
 A full illustrated walkthrough (daily workflow, Startup Suite steps, and the
-"Object selection" dialog gotcha) is published here:
+"Object selection" dialog gotcha) lives at [`docs/setup-guide.html`](docs/setup-guide.html)
+(open it in a browser) - also published at
 https://claude.ai/code/artifact/1e63d35e-36ab-4f46-9441-3cd9fc8973ca
