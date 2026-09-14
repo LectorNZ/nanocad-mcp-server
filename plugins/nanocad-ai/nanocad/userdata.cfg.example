@@ -1,0 +1,4 @@
+[\menu\ClaudeAI] |name=sClaude AI
+
+[\menu\ClaudeAI\status] |name=sConnection status |intername=sCLAUDESTATUS
+[\menu\ClaudeAI\help] |name=sHelp |intername=sCLAUDEHELP

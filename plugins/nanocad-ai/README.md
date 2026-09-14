@@ -111,3 +111,86 @@ around its axis - same profile, same result in both IntelliCAD and nanoCAD).
   set to `command` - is far more reliable than `"L"` (Last) once other
   entities have been created in between, and avoids point-pick ambiguity
   entirely.
+
+## Adding a real UI menu item (working solution)
+
+Goal: a clickable menu entry for `CLAUDESTATUS`/`CLAUDEHELP` (see
+`nanocad/claude_bridge_commands.lsp`), not just typed commands. Three
+approaches were tried; only the last one actually works and survives a
+restart.
+
+**1. `(menuload "file.mnu")` - dead end, and a real footgun.** Classic MNU
+text-menu format. Two failure modes found:
+  - Loading a `.lsp` **file** that contains the bare symbol `menuload`
+    anywhere in it (even inside `(fboundp 'menuload)`, never called) makes
+    the *entire file load silently abort before the first line executes* -
+    confirmed with a minimal repro that writes nothing to a log file when
+    `menuload` is present, and writes fine with it removed. This is a
+    parse/load-time failure, not a runtime error, and nothing (not even
+    `vl-catch-all-apply`) catches it because the file never starts running.
+  - Workaround: invoke `menuload` via `run_command` (raw `SendCommand` text,
+    i.e. typed at the command line) instead of `run_lisp` (which wraps the
+    call in a `(load "file")`). This works fine - no crash.
+  - Even then, `(menuload "path.mnu")` returns `nil` cleanly (no exception).
+    nanoCAD 26 does not support the legacy `.mnu` format - the function
+    exists for API compatibility but rejects the file type silently.
+
+**2. CUIX (ribbon) injection - loads without error, but never appears.**
+  - `.cuix` files are plain ZIP archives (confirmed via 7-Zip) containing an
+    XML file (e.g. `RibbonRoot.cui`) with `RibbonPanelSourceCollection` /
+    `RibbonTabSourceCollection` elements. Real, minimal examples ship at
+    `<nanoCAD install>\UserDataCache\config\mcsmenu.cuix` and
+    `spdsmenu.cuix` - extract one to see the exact schema before
+    hand-authoring your own (this is how a `RibbonCommandButton`'s
+    `MenuMacroID` attribute mapping to a bare command name was confirmed).
+  - `-CUILOAD "path.cuix" ` (space-terminated, run via `run_command`) returns
+    success with no error, no dialog, no hang.
+  - The new tab still never showed up in the ribbon, even after a full
+    nanoCAD restart. `(getvar "WSCURRENT")` returns `nil` in this build, so
+    the usual AutoCAD "workspace doesn't list the new tab" explanation
+    doesn't even apply here - the mechanism this build actually uses for
+    ribbon tab visibility was never identified. Treat ad-hoc `-CUILOAD` of a
+    hand-built partial CUIX as unreliable on this platform.
+
+**3. Native `.cfg` menu format - this is what actually works.** nanoCAD's
+*classic* dropdown menu (File/Edit/View/...) is driven by a completely
+separate, proprietary, plain-text INI-style format - not MNU, not CUIX.
+Discovered by reading `<nanoCAD install>\mcsmenu.cfg` (referenced from
+`...\config\nanoCAD.cfg` via `#include`), which defines the whole Mechanica
+menu tree this way:
+```
+[\menu\Mechanical]              |name=sMechanical
+[\menu\Mechanical\mcDesign\joint] |name=sThreaded fastening |intername=smcjoint
+```
+`nanoCAD.cfg` also has `#include "userdata.cfg"` and
+`#include "user_ribbon.cfg"` near the end - two user-customization hook
+files that are `#include`d unconditionally but **do not exist by default**
+(confirmed: neither is present anywhere under the install dir or the
+per-user `AppData\Roaming\Nanosoft AS\nanoCAD x64 26.0\config\` profile
+folder), so nanoCAD clearly tolerates them being absent - creating one is
+additive/safe.
+
+Working fix: create
+`%APPDATA%\Nanosoft AS\nanoCAD x64 26.0\config\userdata.cfg`:
+```
+[\menu\ClaudeAI] |name=sClaude AI
+
+[\menu\ClaudeAI\status] |name=sConnection status |intername=sCLAUDESTATUS
+[\menu\ClaudeAI\help] |name=sHelp |intername=sCLAUDEHELP
+```
+`[\menu\ClaudeAI]` at the top level (no parent segment) becomes a new
+top-level menu, exactly like the built-in `[\menu\File]` / `[\menu\Edit]`
+entries in the base config. `intername=s<COMMANDNAME>` just needs to match
+an existing command name (here, the two LISP commands from
+`claude_bridge_commands.lsp` - no separate `[\configman\commands\...]`
+registration block turned out to be necessary for a plain LISP-defined
+command, unlike the compiled/icon-bearing Mechanica commands which do
+register one).
+
+Confirmed live: after creating this file and restarting nanoCAD, "Claude AI"
+appeared as a new top-level classic menu with both items, clickable and
+running the underlying commands. Requires a restart - these `.cfg` files
+are read at startup, not hot-reloaded. This has **not** been tried for the
+ribbon UI (`user_ribbon.cfg` likely wants the `.cfg` include-directive
+syntax pointing at a `.cuix`, similar to `#include ... "mcsmenu.cfg"` in the
+base config plus its sibling `mcsmenu.cuix` - untested).
