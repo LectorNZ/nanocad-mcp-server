@@ -10,14 +10,14 @@ import time
 
 import pythoncom
 import win32com.client
-from mcp.server.mcpserver import MCPServer
+from mcp.server.fastmcp import FastMCP
 
 PROGID_CANDIDATES = [
     "nanoCADx64.Application.26.0",
     "nanoCADx64.Application",
 ]
 
-mcp = MCPServer("nanocad-application-server")
+mcp = FastMCP("nanocad-application-server")
 
 
 def _get_app():
