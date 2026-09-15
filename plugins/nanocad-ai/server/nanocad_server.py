@@ -8,6 +8,7 @@ import os
 import sys
 import time
 
+import httpx
 import pythoncom
 import win32com.client
 from mcp.server.fastmcp import FastMCP
@@ -311,6 +312,162 @@ def save_drawing(filePath: str) -> dict:
     doc = _get_doc()
     doc.SaveAs(filePath)
     return {"status": "success", "path": filePath}
+
+
+# ── Parametric feature bridge (.NET CadEngine.Plugin, HTTP :5080) ──────
+#
+# COM/ActiveX (above) is the stable, battle-tested path for entity
+# creation, discovery, dimensions and simple 3D primitives/booleans - use
+# it whenever it covers the job. It does NOT give live-editable parametric
+# features, and its REVOLVE-family operations (vla-AddRevolvedSolid,
+# SendCommand REVOLVE, LISP (command "REVOLVE")) all fail on this install
+# with no code-side fix available - confirmed by direct COM testing to be
+# a licensing/edition gap (base nanoCAD x64 vs. Mechanica/Pro's 3D
+# module), not a scripting bug. See README "3D solid modeling" section.
+#
+# The tools below talk to a separate .NET plugin (CadEngine.Plugin.dll,
+# loaded into nanoCAD via nCad.ini [\NetModules], HTTP on localhost:5080)
+# that exposes MultiCAD's native Mc3dSolid feature-tree API. Its EXTRUDE
+# path is fully validated (exact volume/centroid, live edit_feature_parameter
+# round-trips correctly) — use it when a feature genuinely needs to stay
+# live-editable inside nanoCAD's own history tree, not as a general
+# replacement for the COM tools above. Its REVOLVE path has the same
+# licensing wall as COM/LISP, plus its own now-abandoned GSMarker
+# complications on top - don't use create_revolve_feature; build bodies
+# of revolution as a stack of extrude "washers" instead (see
+# create_extrude_feature below), or fall back to COM's AddRevolvedSolid
+# once the 3D module is licensed.
+
+NET_ENGINE_BASE = os.environ.get("NANOCAD_NET_ENGINE_URL", "http://localhost:5080")
+
+
+def _net(method: str, path: str, **json_body) -> dict:
+    """POST/GET to the .NET CadEngine.Plugin HTTP API and return the
+    decoded JSON body. Raises RuntimeError with the plugin's own error
+    message on failure (mirrors the shape nanoCAD-MCP's http_bridge used)."""
+    url = NET_ENGINE_BASE + path
+    try:
+        if method == "GET":
+            resp = httpx.get(url, timeout=30)
+        else:
+            resp = httpx.post(url, json=json_body, timeout=30)
+    except httpx.ConnectError as e:
+        raise RuntimeError(
+            "Could not reach the .NET CadEngine.Plugin at %s (%s). "
+            "Is nanoCAD running with the plugin loaded? "
+            "Check %%LOCALAPPDATA%%\\Temp\\ncad-mcp-engine-.log." % (url, e)
+        )
+    data = resp.json() if resp.content else {}
+    if isinstance(data, dict) and data.get("error"):
+        raise RuntimeError("CadEngine.Plugin error: %s" % data["error"])
+    return data
+
+
+@mcp.tool()
+def net_health_check() -> dict:
+    """Checks the .NET CadEngine.Plugin HTTP bridge (parametric feature
+    API), separately from the COM connection product_information checks."""
+    return _net("GET", "/api/system/health")
+
+
+@mcp.tool()
+def new_document_parametric() -> dict:
+    """Creates a new empty document via the .NET engine. Use this (not a
+    COM NEW/QNEW command) before building parametric features, since the
+    bootstrap Mc3dSolid tracking below is keyed to whichever document the
+    .NET plugin currently sees as active."""
+    return _net("POST", "/api/document/new")
+
+
+@mcp.tool()
+def create_sketch(solid_handle: str = "", plane_z: float = 0.0) -> dict:
+    """Creates a planar sketch, horizontal at world Z=plane_z, on a
+    parametric Mc3dSolid. Pass solid_handle="" the first time in a
+    document to bootstrap a brand-new parametric body (there is no
+    separate "create solid" call - the .NET Mc3dSolid API has no factory
+    for an empty body, so this plugin fakes one: an unresolvable handle
+    creates one and remembers it for subsequent "" calls in the same
+    document). All geometry added to this sketch (add_sketch_line/
+    add_sketch_circle) must share this same Z - PlanarSketch enforces
+    planarity, and mismatched Z reliably crashes nanoCAD outright."""
+    return _net("POST", "/api/feature/sketch", solid_handle=solid_handle, plane_z=plane_z)
+
+
+@mcp.tool()
+def add_sketch_line(sketch_handle: str, x1: float, y1: float, z1: float,
+                     x2: float, y2: float, z2: float) -> dict:
+    """Adds a line to a sketch. x/y/z are world coordinates; z1 and z2
+    must both equal the sketch's plane_z (see create_sketch)."""
+    return _net(
+        "POST", "/api/feature/sketch/line",
+        sketch_handle=sketch_handle, x1=x1, y1=y1, z1=z1, x2=x2, y2=y2, z2=z2,
+    )
+
+
+@mcp.tool()
+def add_sketch_circle(sketch_handle: str, cx: float, cy: float, cz: float,
+                       radius: float) -> dict:
+    """Adds a circle to a sketch. cz must equal the sketch's plane_z. Two
+    concentric circles in one sketch (outer + inner radius) profile into a
+    true annulus once create_profile is called - validated: extruding one
+    gives exactly pi*(r_out^2-r_in^2)*height."""
+    return _net(
+        "POST", "/api/feature/sketch/circle",
+        sketch_handle=sketch_handle, cx=cx, cy=cy, cz=cz, radius=radius,
+    )
+
+
+@mcp.tool()
+def create_profile(sketch_handle: str) -> dict:
+    """Converts a sketch's curves into a closed profile ready to extrude.
+    Call once after all add_sketch_line/add_sketch_circle calls for that
+    sketch are done."""
+    return _net("POST", "/api/feature/sketch/profile", sketch_handle=sketch_handle)
+
+
+@mcp.tool()
+def create_extrude_feature(profile_handle: str, height: float,
+                            solid_handle: str = "", taper_angle: float = 0.0,
+                            direction: bool = True) -> dict:
+    """Extrudes a profile into a live parametric feature on solid_handle
+    (""=the bootstrapped pending solid from create_sketch). Validated
+    exact: a 10x10 square extruded 10 gives Volume=1000.0, and editing the
+    feature's Distance parameter afterward (edit_feature_parameter)
+    recomputes it correctly. To build a body of revolution, stack several
+    of these as concentric-circle "washers" at increasing plane_z instead
+    of using create_revolve_feature (see module docstring above)."""
+    return _net(
+        "POST", "/api/feature/extrude",
+        solid_handle=solid_handle, profile_handle=profile_handle,
+        height=height, taper_angle=taper_angle, direction=direction,
+    )
+
+
+@mcp.tool()
+def edit_feature_parameter(feature_handle: str, param_name: str, value: float) -> dict:
+    """Live-edits a numeric parameter on an existing parametric feature
+    (e.g. param_name="Distance" on an extrude feature) and recomputes the
+    solid. Validated exact: Distance 10->25 on a 10x10 extrude recomputes
+    Volume from 1000 to 2500 with the correct new centroid."""
+    return _net(
+        "POST", "/api/feature/edit",
+        feature_handle=feature_handle, param_name=param_name, value=value,
+    )
+
+
+@mcp.tool()
+def get_feature_list(solid_handle: str) -> dict:
+    """Lists the parametric feature tree (sketches, extrude features, ...)
+    on a Mc3dSolid, with each feature's editable parameters."""
+    return _net("GET", "/api/feature/list?solid_handle=%s" % solid_handle)
+
+
+@mcp.tool()
+def get_solid_properties(handle: str) -> dict:
+    """Returns Volume, Area and centroid for a solid (parametric or plain
+    ACIS) by handle - the fastest way to sanity-check a build against a
+    hand-computed expectation."""
+    return _net("GET", "/api/solid/%s/props" % handle)
 
 
 if __name__ == "__main__":
