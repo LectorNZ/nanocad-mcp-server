@@ -1,7 +1,7 @@
 # nanocad-mcp-server
 
 A local MCP (Model Context Protocol) plugin that bridges an AI coding agent
-(e.g. Claude Code) to a running **nanoCAD x64 26.0** instance on Windows, via
+(Claude Code or Codex) to a running **nanoCAD x64 26.0** instance on Windows, via
 its COM (ActiveX) automation interface — which closely mirrors AutoCAD's
 ActiveX object model.
 
@@ -13,7 +13,8 @@ AI/MCP plugin exists for nanoCAD.
 
 ```
 .claude-plugin/marketplace.json         # plugin marketplace manifest
-plugins/nanocad-ai/.claude-plugin/      # plugin manifest
+plugins/nanocad-ai/.claude-plugin/      # Claude plugin manifest
+plugins/nanocad-ai/.codex-plugin/       # Codex plugin manifest
 plugins/nanocad-ai/.mcp.json            # MCP server launch config
 plugins/nanocad-ai/server/nanocad_server.py       # the actual MCP server
 plugins/nanocad-ai/nanocad/claude_bridge_commands.lsp  # CLAUDESTATUS / CLAUDEHELP commands
@@ -48,6 +49,35 @@ local Python install.
 See `plugins/nanocad-ai/README.md` for the full tool list and implementation
 notes (including a SendCommand gotcha worth knowing about before extending
 this).
+
+## Connect from Codex
+
+The same Python COM server works with Codex. A Codex plugin manifest is
+included at `plugins/nanocad-ai/.codex-plugin/plugin.json`; it uses the shared
+`.mcp.json` and server, without a separate server implementation.
+
+To register the connection directly with Codex, run this in PowerShell,
+replacing both paths with your actual Python executable and repository:
+
+```powershell
+codex mcp add nanocad-application-server -- 'C:\path\to\python.exe' -u 'C:\path\to\nanocad-mcp-server\plugins\nanocad-ai\server\nanocad_server.py'
+codex mcp list
+```
+
+Use either direct MCP registration or the Codex plugin installation, to avoid
+registering the same tools twice. For plugin installation, adjust the Python
+and server paths in `.mcp.json` for the machine where the plugin will run.
+The checked-in launch configuration currently contains the original local
+Claude installation paths; those paths must exist or be updated.
+
+Start nanoCAD with a drawing open, then start a new Codex task and ask it to
+call `product_information` and `current_drawing_information`. These two tools
+only read information. The server exposes 12 tools; editing tools operate on
+the active drawing. Codex and nanoCAD must run in a Windows session where the
+COM automation object is accessible.
+
+The `CLAUDESTATUS` / `CLAUDEHELP` menu helpers are optional and do not start
+the MCP server. Codex launches the Python server itself.
 
 ## In-nanoCAD helper commands
 

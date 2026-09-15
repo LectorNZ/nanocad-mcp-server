@@ -1,0 +1,23 @@
+{
+  "name": "nanocad-ai",
+  "version": "0.1.0",
+  "description": "Local MCP connection to nanoCAD 26 through Windows COM.",
+  "author": {
+    "name": "Local developer"
+  },
+  "interface": {
+    "displayName": "nanoCAD AI",
+    "shortDescription": "Read and edit nanoCAD drawings through COM.",
+    "longDescription": "Connect Codex to a running nanoCAD x64 26.0 instance using the existing local Python COM bridge.",
+    "developerName": "Local developer",
+    "category": "Productivity",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Check the current nanoCAD drawing."
+    ]
+  },
+  "mcpServers": "./.mcp.json"
+}
